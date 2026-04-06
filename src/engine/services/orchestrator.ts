@@ -8,6 +8,7 @@ import {
   assembleFacilitatorPrompt,
   assembleOrientationPrompt,
 } from '../prompt-assembly.js'
+import { generateOutput } from './output-generator.js'
 import type { SessionManifest } from '../schema.js'
 
 interface RunSessionParams {
@@ -34,6 +35,8 @@ export type OrchestratorEvent =
   | { type: 'agent_passed'; round: number; persona: string; cost: CostInfo }
   | { type: 'facilitator_summary'; round: number; summary: string; cost: CostInfo }
   | { type: 'convergence'; round: number; score: number; recommendation: string }
+  | { type: 'output_start'; artifact: string }
+  | { type: 'output_complete'; artifact: string; cost: number }
   | {
       type: 'session_complete'
       totalCostUsd: number
@@ -207,6 +210,19 @@ export function runSession(params: RunSessionParams) {
 
       if (shouldConverge) break
     }
+
+    // generate output artifacts
+    yield* generateOutput({
+      sessionId: manifest.id,
+      personasDir: params.personasDir,
+      onEvent: (e) => {
+        if (e.type === 'generating') emit({ type: 'output_start', artifact: e.artifact })
+        if (e.type === 'complete') {
+          totalCostUsd += e.cost
+          emit({ type: 'output_complete', artifact: e.artifact, cost: e.cost })
+        }
+      },
+    })
 
     currentManifest = { ...currentManifest, status: 'complete', totalCostUsd }
     yield* sessionSvc.save(currentManifest)

@@ -85,6 +85,12 @@ const program = runSession({
       case 'convergence':
         console.log(`  convergence score: ${event.score}/5 — ${event.recommendation}\n`)
         break
+      case 'output_start':
+        console.log(`  generating ${event.artifact}...`)
+        break
+      case 'output_complete':
+        console.log(`  ${event.artifact} done ($${event.cost.toFixed(4)})\n`)
+        break
       case 'session_complete':
         console.log(`${'='.repeat(60)}`)
         console.log(`  REVIEW COMPLETE`)

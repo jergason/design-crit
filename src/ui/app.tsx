@@ -143,6 +143,14 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
           }
           break
 
+        case 'output_start':
+          setStatus(`generating ${event.artifact}`)
+          break
+
+        case 'output_complete':
+          setTotalCost((prev) => prev + event.cost)
+          break
+
         case 'session_complete':
           setStatus('complete')
           setFinalStats({
