@@ -31,6 +31,7 @@ export type OrchestratorEvent =
   | { type: 'session_created'; sessionId: string }
   | { type: 'round_start'; round: number }
   | { type: 'agent_start'; round: number; persona: string }
+  | { type: 'agent_delta'; round: number; persona: string; delta: string }
   | { type: 'agent_complete'; round: number; persona: string; content: string; cost: CostInfo }
   | { type: 'agent_passed'; round: number; persona: string; cost: CostInfo }
   | { type: 'facilitator_summary'; round: number; summary: string; cost: CostInfo }
@@ -147,11 +148,9 @@ export function runSession(params: RunSessionParams) {
           contextFiles,
         })
 
-        const result = yield* agentSvc.invoke({
-          persona,
-          systemPrompt,
-          prompt,
-        })
+        const result = yield* agentSvc.invokeStreaming({ persona, systemPrompt, prompt }, (delta) =>
+          emit({ type: 'agent_delta', round, persona, delta }),
+        )
 
         yield* sessionSvc.writeRoundFile(manifest.id, round, `${persona}.md`, result.content)
 

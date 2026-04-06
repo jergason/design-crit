@@ -61,14 +61,15 @@ const program = runSession({
         console.log(`${'='.repeat(60)}\n`)
         break
       case 'agent_start':
-        console.log(`  [${event.persona}] thinking...\n`)
+        process.stdout.write(`  --- ${event.persona} ---\n`)
+        break
+      case 'agent_delta':
+        process.stdout.write(event.delta)
         break
       case 'agent_complete':
         console.log(
-          `  --- ${event.persona} [${event.cost.model} · $${event.cost.costUsd.toFixed(4)} · ${event.cost.tokensIn}→${event.cost.tokensOut} tokens] ---\n`,
+          `\n  [${event.cost.model} · $${event.cost.costUsd.toFixed(4)} · ${event.cost.tokensIn}→${event.cost.tokensOut} tokens]\n`,
         )
-        console.log(event.content)
-        console.log()
         break
       case 'agent_passed':
         console.log(

@@ -24,12 +24,14 @@ export function AgentCard({ persona, status, content, cost }: AgentCardProps) {
           {persona}
         </Text>
         {cost && <Text dimColor>{costLabel}</Text>}
-        {status === 'thinking' && <Text color="yellow"> thinking...</Text>}
+        {status === 'thinking' && !content && <Text color="yellow"> thinking...</Text>}
+        {status === 'thinking' && content && <Text color="yellow"> streaming...</Text>}
         {status === 'passed' && <Text dimColor> PASS</Text>}
       </Box>
-      {status === 'complete' && content && (
+      {(status === 'complete' || status === 'thinking') && content && (
         <Box marginLeft={2} marginTop={0}>
           <Text wrap="wrap">{content}</Text>
+          {status === 'thinking' && <Text color="yellow">▌</Text>}
         </Box>
       )}
     </Box>

@@ -77,7 +77,26 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
                 ? {
                     ...rd,
                     agents: rd.agents.map((a) =>
-                      a.persona === event.persona ? { ...a, status: 'thinking' as const } : a,
+                      a.persona === event.persona
+                        ? { ...a, status: 'thinking' as const, content: '' }
+                        : a,
+                    ),
+                  }
+                : rd,
+            ),
+          )
+          break
+
+        case 'agent_delta':
+          setRoundsData((prev) =>
+            prev.map((rd) =>
+              rd.round === event.round
+                ? {
+                    ...rd,
+                    agents: rd.agents.map((a) =>
+                      a.persona === event.persona
+                        ? { ...a, content: (a.content ?? '') + event.delta }
+                        : a,
                     ),
                   }
                 : rd,
