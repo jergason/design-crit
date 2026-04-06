@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Box, Text, useApp } from 'ink'
 import { Effect, Layer } from 'effect'
 import { NodeFileSystem } from '@effect/platform-node'
@@ -6,6 +6,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { RoundView, type AgentState } from './components/round-view.js'
 import { StatusBar } from './components/status-bar.js'
+import { HumanInput } from './components/human-input.js'
 import { resolvePanel } from '../engine/panels.js'
 import { SessionServiceLive } from '../engine/services/session.js'
 import { AgentServiceLive } from '../engine/services/agent.js'
@@ -43,6 +44,7 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
     totalTokensIn: number
     totalTokensOut: number
   }>()
+  const humanInputQueue = useRef<string[]>([])
 
   const resolved = resolvePanel(panel)
   const panelList = resolved.personas
@@ -156,6 +158,26 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
           )
           break
 
+        case 'human_interjection':
+          setRoundsData((prev) =>
+            prev.map((rd) =>
+              rd.round === event.round
+                ? {
+                    ...rd,
+                    agents: [
+                      ...rd.agents,
+                      {
+                        persona: 'you',
+                        status: 'complete' as const,
+                        content: event.message,
+                      },
+                    ],
+                  }
+                : rd,
+            ),
+          )
+          break
+
         case 'convergence':
           if (event.recommendation === 'converge') {
             setStatus('converging')
@@ -203,6 +225,7 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
       codebasePath,
       personasDir,
       onEvent: handleEvent,
+      pollHumanInput: () => humanInputQueue.current.shift(),
     })
 
     const layer = SessionServiceLive(sessionsDir).pipe(
@@ -269,6 +292,11 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
           summaryCost={rd.summaryCost}
         />
       ))}
+
+      <HumanInput
+        enabled={status === 'reviewing'}
+        onSubmit={(msg) => humanInputQueue.current.push(msg)}
+      />
 
       {finalStats && (
         <Box flexDirection="column" marginTop={1}>

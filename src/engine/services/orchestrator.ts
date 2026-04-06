@@ -18,6 +18,8 @@ interface RunSessionParams {
   codebasePath?: string
   personasDir: string
   onEvent?: (event: OrchestratorEvent) => void
+  /** non-blocking check for human input — returns message or undefined */
+  pollHumanInput?: () => string | undefined
 }
 
 export interface CostInfo {
@@ -32,6 +34,7 @@ export type OrchestratorEvent =
   | { type: 'round_start'; round: number }
   | { type: 'agent_start'; round: number; persona: string }
   | { type: 'agent_delta'; round: number; persona: string; delta: string }
+  | { type: 'human_interjection'; round: number; message: string }
   | { type: 'agent_complete'; round: number; persona: string; content: string; cost: CostInfo }
   | { type: 'agent_passed'; round: number; persona: string; cost: CostInfo }
   | { type: 'facilitator_summary'; round: number; summary: string; cost: CostInfo }
@@ -64,6 +67,7 @@ function parseConvergenceScore(summary: string): number {
 
 export function runSession(params: RunSessionParams) {
   const emit = params.onEvent ?? (() => {})
+  const pollHuman = params.pollHumanInput ?? (() => undefined)
 
   return Effect.gen(function* () {
     const sessionSvc = yield* SessionService
@@ -134,18 +138,31 @@ export function runSession(params: RunSessionParams) {
       const contextFiles = new Map<string, string>()
 
       const agentResponses = new Map<string, string>()
+      let humanInterjection: string | undefined
 
       // invoke each persona sequentially
       for (const persona of params.panel) {
+        // check for human input between agent turns
+        const humanMsg = pollHuman()
+        if (humanMsg) {
+          humanInterjection = humanMsg
+          emit({ type: 'human_interjection', round, message: humanMsg })
+          yield* sessionSvc.writeRoundFile(manifest.id, round, 'human.md', humanMsg)
+        }
+
         emit({ type: 'agent_start', round, persona })
 
         const systemPrompt = loadPersonaPrompt(params.personasDir, persona)
+        const roundInstructions = humanInterjection
+          ? `The human has interjected with: "${humanInterjection}". Take this into account.`
+          : undefined
         const prompt = assembleAgentPrompt({
           docContent,
           roundNumber: round,
           roundLimit: params.roundLimit,
           previousSummary,
           contextFiles,
+          roundInstructions,
         })
 
         const result = yield* agentSvc.invokeStreaming({ persona, systemPrompt, prompt }, (delta) =>
