@@ -10,12 +10,15 @@ const cli = meow(
     $ design-crit <design-doc.md>
 
   Options
-    --panel, -p    Panel personas, comma-separated (default: pragmatist,scope-hawk,security-paranoiac)
+    --panel, -p    Panel preset name or comma-separated personas
+                   Presets: pre-rfc, security-audit, ship-or-kill, greenfield, full-panel
+                   Default: pragmatist,scope-hawk,security-paranoiac
     --rounds, -r   Max rounds (default: 2)
     --codebase, -c Path to codebase for agent exploration
 
   Examples
     $ design-crit docs/my-design.md
+    $ design-crit docs/my-design.md --panel pre-rfc
     $ design-crit docs/my-design.md --panel security-paranoiac,pragmatist --rounds 3
 `,
   {

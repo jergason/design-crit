@@ -1,0 +1,6 @@
+{
+  "name": "Security Audit",
+  "description": "For reviewing designs that touch auth, data, APIs, or trust boundaries",
+  "personas": ["security-paranoiac", "grizzled-veteran", "pragmatist"],
+  "roundLimit": 3
+}

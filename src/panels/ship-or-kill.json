@@ -1,0 +1,6 @@
+{
+  "name": "Ship or Kill",
+  "description": "For deciding whether to invest further or cut scope aggressively",
+  "personas": ["business-pressure", "user-advocate", "pragmatist"],
+  "roundLimit": 2
+}

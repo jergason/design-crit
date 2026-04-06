@@ -1,0 +1,6 @@
+{
+  "name": "Greenfield Exploration",
+  "description": "For exploring new problem spaces where wild ideas are welcome",
+  "personas": ["excited-junior", "architecture-astronaut", "pragmatist"],
+  "roundLimit": 3
+}

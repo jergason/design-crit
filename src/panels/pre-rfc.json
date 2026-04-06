@@ -1,0 +1,6 @@
+{
+  "name": "Pre-RFC Review",
+  "description": "For early-stage proposals that need shape before wider review",
+  "personas": ["scope-hawk", "architecture-astronaut", "pragmatist"],
+  "roundLimit": 3
+}

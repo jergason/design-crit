@@ -6,6 +6,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { RoundView, type AgentState } from './components/round-view.js'
 import { StatusBar } from './components/status-bar.js'
+import { resolvePanel } from '../engine/panels.js'
 import { SessionServiceLive } from '../engine/services/session.js'
 import { AgentServiceLive } from '../engine/services/agent.js'
 import { OpenCodeServerLive } from '../engine/services/opencode-server.js'
@@ -43,7 +44,9 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
     totalTokensOut: number
   }>()
 
-  const panelList = panel ? panel.split(',') : ['pragmatist', 'scope-hawk', 'security-paranoiac']
+  const resolved = resolvePanel(panel)
+  const panelList = resolved.personas
+  const effectiveRounds = resolved.roundLimit ?? rounds
 
   const handleEvent = useCallback(
     (event: OrchestratorEvent) => {
@@ -169,7 +172,7 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
     const program = runSession({
       docPath: resolvedDoc,
       panel: panelList,
-      roundLimit: rounds,
+      roundLimit: effectiveRounds,
       codebasePath,
       personasDir,
       onEvent: handleEvent,
@@ -224,7 +227,7 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
       <StatusBar
         sessionId={sessionId}
         currentRound={currentRound}
-        roundLimit={rounds}
+        roundLimit={effectiveRounds}
         totalCost={totalCost}
         status={status}
       />

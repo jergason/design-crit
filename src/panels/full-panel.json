@@ -1,0 +1,15 @@
+{
+  "name": "Full Panel",
+  "description": "Comprehensive review when cost isn't a concern",
+  "personas": [
+    "pragmatist",
+    "scope-hawk",
+    "security-paranoiac",
+    "user-advocate",
+    "grizzled-veteran",
+    "architecture-astronaut",
+    "business-pressure",
+    "excited-junior"
+  ],
+  "roundLimit": 3
+}
