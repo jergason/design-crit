@@ -15,6 +15,7 @@ const cli = meow(
                    Default: pragmatist,scope-hawk,security-paranoiac
     --rounds, -r   Max rounds (default: 2)
     --codebase, -c Path to codebase for agent exploration
+    --debug, -d    Verbose logging (SSE events, timing, session IDs)
 
   Examples
     $ design-crit docs/my-design.md
@@ -27,6 +28,7 @@ const cli = meow(
       panel: { type: 'string', shortFlag: 'p' },
       rounds: { type: 'number', shortFlag: 'r', default: 2 },
       codebase: { type: 'string', shortFlag: 'c' },
+      debug: { type: 'boolean', shortFlag: 'd', default: false },
     },
   },
 )
@@ -39,6 +41,7 @@ const { waitUntilExit } = render(
     panel: cli.flags.panel,
     rounds: cli.flags.rounds,
     codebasePath: cli.flags.codebase,
+    debug: cli.flags.debug,
   }),
 )
 

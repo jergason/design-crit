@@ -22,6 +22,7 @@ interface AppProps {
   panel?: string
   rounds: number
   codebasePath?: string
+  debug?: boolean
 }
 
 interface RoundData {
@@ -31,7 +32,7 @@ interface RoundData {
   summaryCost?: CostInfo
 }
 
-export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
+export function App({ docPath, panel, rounds, codebasePath, debug }: AppProps) {
   const { exit } = useApp()
   const [sessionId, setSessionId] = useState<string>()
   const [status, setStatus] = useState('setup')
@@ -224,6 +225,7 @@ export function App({ docPath, panel, rounds, codebasePath }: AppProps) {
       roundLimit: effectiveRounds,
       codebasePath,
       personasDir,
+      debug,
       onEvent: handleEvent,
       pollHumanInput: () => humanInputQueue.current.shift(),
     })

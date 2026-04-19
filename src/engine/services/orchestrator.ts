@@ -20,6 +20,8 @@ interface RunSessionParams {
   onEvent?: (event: OrchestratorEvent) => void
   /** non-blocking check for human input — returns message or undefined */
   pollHumanInput?: () => string | undefined
+  /** enable verbose debug logging (SSE events, timing, session IDs) */
+  debug?: boolean
 }
 
 export interface CostInfo {
@@ -41,6 +43,7 @@ export type OrchestratorEvent =
   | { type: 'convergence'; round: number; score: number; recommendation: string }
   | { type: 'output_start'; artifact: string }
   | { type: 'output_complete'; artifact: string; cost: number }
+  | { type: 'debug'; message: string }
   | {
       type: 'session_complete'
       totalCostUsd: number
@@ -68,6 +71,9 @@ function parseConvergenceScore(summary: string): number {
 export function runSession(params: RunSessionParams) {
   const emit = params.onEvent ?? (() => {})
   const pollHuman = params.pollHumanInput ?? (() => undefined)
+  const dbg = params.debug
+    ? (msg: string) => emit({ type: 'debug', message: msg })
+    : undefined
 
   return Effect.gen(function* () {
     const sessionSvc = yield* SessionService
@@ -138,47 +144,52 @@ export function runSession(params: RunSessionParams) {
       const contextFiles = new Map<string, string>()
 
       const agentResponses = new Map<string, string>()
-      let humanInterjection: string | undefined
 
-      // invoke each persona sequentially
-      for (const persona of params.panel) {
-        // check for human input between agent turns
-        const humanMsg = pollHuman()
-        if (humanMsg) {
-          humanInterjection = humanMsg
-          emit({ type: 'human_interjection', round, message: humanMsg })
-          yield* sessionSvc.writeRoundFile(manifest.id, round, 'human.md', humanMsg)
-        }
-
-        emit({ type: 'agent_start', round, persona })
-
-        const systemPrompt = loadPersonaPrompt(params.personasDir, persona)
-        const roundInstructions = humanInterjection
-          ? `The human has interjected with: "${humanInterjection}". Take this into account.`
-          : undefined
-        const prompt = assembleAgentPrompt({
-          docContent,
-          roundNumber: round,
-          roundLimit: params.roundLimit,
-          previousSummary,
-          contextFiles,
-          roundInstructions,
-        })
-
-        const result = yield* agentSvc.invokeStreaming({ persona, systemPrompt, prompt }, (delta) =>
-          emit({ type: 'agent_delta', round, persona, delta }),
-        )
-
-        yield* sessionSvc.writeRoundFile(manifest.id, round, `${persona}.md`, result.content)
-
-        const cost = costFrom(result)
-        if (result.content.trim().toUpperCase() === 'PASS') {
-          emit({ type: 'agent_passed', round, persona, cost })
-        } else {
-          emit({ type: 'agent_complete', round, persona, content: result.content, cost })
-          agentResponses.set(persona, result.content)
-        }
+      // check for human input before launching the round
+      const humanMsg = pollHuman()
+      let roundInstructions: string | undefined
+      if (humanMsg) {
+        emit({ type: 'human_interjection', round, message: humanMsg })
+        yield* sessionSvc.writeRoundFile(manifest.id, round, 'human.md', humanMsg)
+        roundInstructions = `The human has interjected with: "${humanMsg}". Take this into account.`
       }
+
+      // invoke all personas concurrently
+      const results = yield* Effect.forEach(
+        params.panel,
+        (persona) =>
+          Effect.gen(function* () {
+            emit({ type: 'agent_start', round, persona })
+
+            const systemPrompt = loadPersonaPrompt(params.personasDir, persona)
+            const prompt = assembleAgentPrompt({
+              docContent,
+              roundNumber: round,
+              roundLimit: params.roundLimit,
+              previousSummary,
+              contextFiles,
+              roundInstructions,
+            })
+
+            const result = yield* agentSvc.invokeStreaming(
+              { persona, systemPrompt, prompt },
+              (delta) => emit({ type: 'agent_delta', round, persona, delta }),
+              dbg,
+            )
+
+            yield* sessionSvc.writeRoundFile(manifest.id, round, `${persona}.md`, result.content)
+
+            const cost = costFrom(result)
+            if (result.content.trim().toUpperCase() === 'PASS') {
+              emit({ type: 'agent_passed', round, persona, cost })
+            } else {
+              emit({ type: 'agent_complete', round, persona, content: result.content, cost })
+              agentResponses.set(persona, result.content)
+            }
+            return result
+          }),
+        { concurrency: 'unbounded' },
+      )
 
       // facilitator summary
       emit({ type: 'agent_start', round, persona: 'facilitator' })

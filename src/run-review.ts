@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Run a full multi-agent design review from the command line.
- * Usage: node --experimental-modules src/run-review.ts <doc.md> [--rounds N] [--panel persona1,persona2]
+ * Usage: node --experimental-modules src/run-review.ts <doc.md> [--rounds N] [--panel persona1,persona2] [--debug]
  */
 import { Effect, Layer } from 'effect'
 import { NodeFileSystem } from '@effect/platform-node'
@@ -29,6 +29,8 @@ const panel =
     ? args[panelFlag + 1].split(',')
     : ['pragmatist', 'scope-hawk', 'security-paranoiac']
 
+const debug = args.includes('--debug')
+
 if (!fs.existsSync(docPath)) {
   console.error(`doc not found: ${docPath}`)
   process.exit(1)
@@ -43,6 +45,7 @@ console.log(`\n  design-crit review`)
 console.log(`  doc: ${docPath}`)
 console.log(`  panel: ${panel.join(', ')}`)
 console.log(`  rounds: ${rounds}`)
+if (debug) console.log(`  debug: ON`)
 console.log()
 
 const program = runSession({
@@ -50,6 +53,7 @@ const program = runSession({
   panel,
   roundLimit: rounds,
   personasDir,
+  debug,
   onEvent: (event) => {
     switch (event.type) {
       case 'session_created':
@@ -64,7 +68,7 @@ const program = runSession({
         process.stdout.write(`  --- ${event.persona} ---\n`)
         break
       case 'agent_delta':
-        process.stdout.write(event.delta)
+        if (!debug) process.stdout.write(event.delta)
         break
       case 'agent_complete':
         console.log(
@@ -91,6 +95,9 @@ const program = runSession({
         break
       case 'output_complete':
         console.log(`  ${event.artifact} done ($${event.cost.toFixed(4)})\n`)
+        break
+      case 'debug':
+        console.log(`  [debug] ${event.message}`)
         break
       case 'session_complete':
         console.log(`${'='.repeat(60)}`)

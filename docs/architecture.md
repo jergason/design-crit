@@ -62,32 +62,287 @@ src/
     session.test.ts                session service unit tests
 ```
 
-### Data Flow
+### System Architecture
 
 ```
-CLI args → App component → runSession(params)
-                              ↓
-                        OpenCode server starts
-                              ↓
-                        Session directory created
-                              ↓
-                    ┌── Round 0: Facilitator orientation
-                    │
-                    ├── Round 1..N:
-                    │     for each persona:
-                    │       1. check human input queue
-                    │       2. assemble prompt (doc + summary + context)
-                    │       3. invokeStreaming → SSE text deltas → TUI
-                    │       4. write response to disk
-                    │     facilitator summarizes round
-                    │     check convergence score
-                    │
-                    ├── Output generation:
-                    │     facilitator produces review-notes.md
-                    │     facilitator produces revised-doc.md
-                    │
-                    └── Session complete
+┌──────────────────────────────┐
+│                              │
+│       User: design doc       │
+│                              │
+└───────────────┬──────────────┘
+                │
+                ▼
+┌──────────────────────────────┐
+│                              │
+│       CLI meow parser        ├──────────────────┐
+│                              │                  │
+└───────────────┬──────────────┘                  │
+                │                                 │
+                ▼                                 ▼
+┌──────────────────────────────┐     ┌────────────────────────┐
+│                              │     │                        │
+│       App.tsx Ink TUI        ├──┬──┤ run-review.ts headless │
+│                              │  │  │                        │
+└───────────────┬──────────────┘  │  └────────────────────────┘
+                │                 │
+                ├─────────────────┴───────────────┬──────────────────────────────┬────────────────────────┐
+                │                                 │                              │                        │
+                ▼                                 ▼                              ▼                        ▼
+┌──────────────────────────────┐     ┌────────────────────────┐     ┌────────────────────────┐     ┌────────────┐
+│                              │     │                        │     │                        │     │            │
+│         Orchestrator         ├──┐  │       StatusBar        │     │ RoundView + AgentCards │     │ HumanInput │
+│                              │  │  │                        │     │                        │     │            │
+└───────────────┬──────────────┘  │  └────────────────────────┘     └────────────────────────┘     └────────────┘
+                │                 │                                              ▲
+                │                 │                                              │
+                │                 └───────────────┬──────────────┬───────────────┤
+                │                                 │              │               │
+                ▼                                 ▼              │               ▼
+┌──────────────────────────────┐     ┌────────────────────────┐  │  ┌────────────────────────┐
+│                              │     │                        │  │  │                        │
+│        SessionService        │◄─┐  │      AgentService      ├──┼──┤    OutputGenerator     │
+│                              │  │  │                        │  │  │                        │
+└───────────────┬──────────────┘  │  └────────────┬───────────┘  │  └────────────────────────┘
+                │                 │               │              │
+                │                 └───────────────┼──────────────┘
+                │                                 │
+                ▼                                 ▼
+┌──────────────────────────────┐     ┌────────────────────────┐
+│                              │     │                        │
+│ Session Dir: rounds + output │     │  OpenCode Server SSE   │
+│                              │     │                        │
+└──────────────────────────────┘     └────────────┬───────────┘
+                                                  │
+┌──────────────────────────────┐                  │
+│                              │                  │
+│        LLM Providers         │◄─────────────────┘
+│                              │
+└──────────────────────────────┘
 ```
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+graph TD
+    USER[User: design doc]
+    CLI[CLI meow parser]
+    TUI[App.tsx Ink TUI]
+    HEADLESS[run-review.ts headless]
+    ORCH[Orchestrator]
+    SESSION[SessionService]
+    AGENT[AgentService]
+    OUTPUT[OutputGenerator]
+    OC[OpenCode Server SSE]
+    LLM[LLM Providers]
+    FS[(Session Dir: rounds + output)]
+    UI_STATUS[StatusBar]
+    UI_ROUND[RoundView + AgentCards]
+    UI_HUMAN[HumanInput]
+
+    USER --> CLI
+    CLI --> TUI
+    CLI --> HEADLESS
+    TUI --> ORCH
+    HEADLESS --> ORCH
+    ORCH --> SESSION
+    ORCH --> AGENT
+    ORCH --> OUTPUT
+    SESSION --> FS
+    AGENT --> OC
+    OC --> LLM
+    OUTPUT --> SESSION
+    TUI --> UI_STATUS
+    TUI --> UI_ROUND
+    TUI --> UI_HUMAN
+    AGENT -.-> UI_ROUND
+```
+
+</details>
+
+### Review Flow
+
+```
+┌───────────────────────┐     ┌──────────────────────────────────┐
+│                       │     │                                  │
+│  Round 0: Orientation │     │     All Personas concurrent      ├─────┬──────┐
+│                       │     │                                  │     │      │
+└───────────┬───────────┘     └─────────────────┬────────────────┘     └──────┼──────────────────────┐
+            │                                   ▲                             │                      │
+            │              ┌────────────────────┤                             │                      │
+            │              │                    │                             │                      │
+            ▼              │                    ▼                             ▼                      ▼
+┌───────────────────────┐  │  ┌──────────────────────────────────┐     ┌────────────┐     ┌────────────────────┐
+│                       │  │  │                                  │     │            │     │                    │
+│ Facilitator reads doc │  │  │            pragmatist            │     │ scope-hawk │     │ security-paranoiac │
+│                       │  │  │                                  │     │            │     │                    │
+└───────────┬───────────┘  │  └─────────────────┬────────────────┘     └──────┬─────┘     └──────────┬─────────┘
+            │              │                    │                             │                      │
+            ▼              │                    ▼                             │                      │
+┌───────────────────────┐  │  ┌──────────────────────────────────┐            │                      │
+│                       │  │  │                                  │            │                      │
+│    Initial summary    │  │  │      Facilitator summarizes      │◄───────────┴──────────────────────┘
+│                       │  │  │                                  │
+└───────────┬───────────┘  │  └─────────────────┬────────────────┘
+            │              │                    │
+            ▼              │                    ▼
+┌───────────────────────┐  │  ┌──────────────────────────────────┐
+│                       │  │  │                                  │
+│   Round 1..N: Review  │◄No──┤ Convergence <= 2 AND round >= 2? │
+│                       │  │  │                                  │
+└───────────┬───────────┘  │  └─────────────────┬────────────────┘
+            │              │                    │
+            │              │                   Yes
+            ▼              │                    ▼
+┌───────────────────────┐  │  ┌──────────────────────────────────┐
+│                       │  │  │                                  │
+│  Human interjection?  ├──┼──┤        Output Generation         │
+│                       │  │  │                                  │
+└───────────────────────┘  │  └─────────────────┬────────────────┘
+                           │                    │
+            ┌──────────────┘                    │
+            ▼                                   ▼
+┌───────────────────────┐     ┌──────────────────────────────────┐
+│                       │     │                                  │
+│    review-notes.md    │     │          revised-doc.md          │
+│                       │     │                                  │
+└───────────────────────┘     └──────────────────────────────────┘
+```
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+graph TD
+    R0[Round 0: Orientation]
+    FAC0[Facilitator reads doc]
+    SUM0[Initial summary]
+    R1[Round 1..N: Review]
+    AGENTS[All Personas concurrent]
+    P1[pragmatist]
+    P2[scope-hawk]
+    P3[security-paranoiac]
+    HUMAN{Human interjection?}
+    FAC1[Facilitator summarizes]
+    CONV{Convergence <= 2 AND round >= 2?}
+    OUT[Output Generation]
+    NOTES[review-notes.md]
+    REVISED[revised-doc.md]
+
+    R0 --> FAC0
+    FAC0 --> SUM0
+    SUM0 --> R1
+    R1 --> HUMAN
+    HUMAN --> AGENTS
+    AGENTS --> P1
+    AGENTS --> P2
+    AGENTS --> P3
+    P1 --> FAC1
+    P2 --> FAC1
+    P3 --> FAC1
+    FAC1 --> CONV
+    CONV -->|No| R1
+    CONV -->|Yes| OUT
+    OUT --> NOTES
+    OUT --> REVISED
+```
+
+</details>
+
+### SSE Streaming Sequence
+
+```
+ ┌─────────────┐          ┌──────────────┐              ┌──────────────┐           ┌─────────────────┐    ┌──────────────┐
+ │ App.tsx TUI │          │ Orchestrator │              │ AgentService │           │ OpenCode Server │    │ LLM Provider │
+ └──────┬──────┘          └───────┬──────┘              └───────┬──────┘           └────────┬────────┘    └───────┬──────┘
+        │                         │                             │                           │                     │
+        │   runSession(params)    │                             │                           │                     │
+        │─────────────────────────▶                             │                           │                     │
+        │                         │                             │                           │                     │
+        │                         │  invokeStreaming(persona)   │                           │                     │
+        │                         │─────────────────────────────▶                           │                     │
+        │                         │                             │                           │                     │
+        │                         │                             │  createSession(persona)   │                     │
+        │                         │                             │───────────────────────────▶                     │
+        │                         │                             │                           │                     │
+        │                         │                             │         sessionId         │                     │
+        │                         │                             ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                     │
+        │                         │                             │                           │                     │
+        │                         │                             │   event.subscribe() SSE   │                     │
+        │                         │                             │───────────────────────────▶                     │
+        │                         │                             │                           │                     │
+        │                         │                             │  promptAsync(sessionId)   │                     │
+        │                         │                             │───────────────────────────▶                     │
+        │                         │                             │                           │                     │
+        │                         │                             │                           │       prompt        │
+        │                         │                             │                           │─────────────────────▶
+        │                         │                             │                           │                     │
+        │                         │                             │                           │  streaming tokens   │
+        │                         │                             │                           ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│
+        │                         │                             │                           │                     │
+        │                         │                             │    message.part.delta     │                     │
+        │                         │                             ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                     │
+        │                         │                             │                           │                     │
+        │                         │        onDelta(text)        │                           │                     │
+        │                         ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                           │                     │
+        │                         │                             │                           │                     │
+        │    agent_delta event    │                             │                           │                     │
+        ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                             │                           │                     │
+        │                         │                             │                           │                     │
+        │                         │                             │    message.part.delta     │                     │
+        │                         │                             ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                     │
+        │                         │                             │                           │                     │
+        │                         │        onDelta(text)        │                           │                     │
+        │                         ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                           │                     │
+        │                         │                             │                           │                     │
+        │    agent_delta event    │                             │                           │                     │
+        ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                             │                           │                     │
+        │                         │                             │                           │                     │
+        │                         │                             │       session.idle        │                     │
+        │                         │                             ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                     │
+        │                         │                             │                           │                     │
+        │                         │         AgentResult         │                           │                     │
+        │                         ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                           │                     │
+        │                         │                             │                           │                     │
+        │  agent_complete event   │                             │                           │                     │
+        ◀╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│                             │                           │                     │
+        │                         │                             │                           │                     │
+ ┌──────┴──────┐          ┌───────┴──────┐              ┌───────┴──────┐           ┌────────┴────────┐    ┌───────┴──────┐
+ │ App.tsx TUI │          │ Orchestrator │              │ AgentService │           │ OpenCode Server │    │ LLM Provider │
+ └─────────────┘          └──────────────┘              └──────────────┘           └─────────────────┘    └──────────────┘
+```
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+sequenceDiagram
+    participant TUI as App.tsx TUI
+    participant ORCH as Orchestrator
+    participant AGENT as AgentService
+    participant OC as OpenCode Server
+    participant LLM as LLM Provider
+
+    TUI->>ORCH: runSession(params)
+    ORCH->>AGENT: invokeStreaming(persona)
+    AGENT->>OC: createSession(persona)
+    OC-->>AGENT: sessionId
+    AGENT->>OC: event.subscribe() SSE
+    AGENT->>OC: promptAsync(sessionId)
+    OC->>LLM: prompt
+    LLM-->>OC: streaming tokens
+    OC-->>AGENT: message.part.delta
+    AGENT-->>ORCH: onDelta(text)
+    ORCH-->>TUI: agent_delta event
+    OC-->>AGENT: message.part.delta
+    AGENT-->>ORCH: onDelta(text)
+    ORCH-->>TUI: agent_delta event
+    OC-->>AGENT: session.idle
+    AGENT-->>ORCH: AgentResult
+    ORCH-->>TUI: agent_complete event
+```
+
+</details>
 
 ### Session Directory Structure
 
@@ -112,16 +367,59 @@ sessions/session-{id}/
   sidebars/              (future)
 ```
 
-### Effect Service Graph
+### Effect Layer DI Graph
 
 ```
-OrchestratorService (runSession)
-  ├── SessionService          disk I/O via @effect/platform FileSystem
-  │     └── NodeFileSystem    provided via Layer
-  ├── AgentService            wraps OpenCode SDK client
-  │     └── OpenCodeServer    server lifecycle via Layer.scoped + acquireRelease
-  └── FacilitatorService      (inline in orchestrator, uses AgentService)
+┌───────────────────────────┐
+│                           │
+│    NodeFileSystem.layer   ├────────────────┐
+│                           │                │
+└─────────────┬─────────────┘                │
+              │                              │
+              ▼                              ▼
+┌───────────────────────────┐     ┌────────────────────┐
+│                           │     │                    │
+│ OpenCodeServerLive scoped ├──┐  │ SessionServiceLive │
+│                           │  │  │                    │
+└─────────────┬─────────────┘  │  └──────────┬─────────┘
+              │                │             │
+              │                └─────────────┤
+              ▼                              ▼
+┌───────────────────────────┐     ┌────────────────────┐
+│                           │     │                    │
+│      AgentServiceLive     ├────►│   Composed Layer   │
+│                           │     │                    │
+└───────────────────────────┘     └──────────┬─────────┘
+                                             │
+┌───────────────────────────┐                │
+│                           │                │
+│     Effect.gen program    │◄───────────────┘
+│                           │
+└───────────────────────────┘
 ```
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+graph TD
+    NFS[NodeFileSystem.layer]
+    OCS[OpenCodeServerLive scoped]
+    AGS[AgentServiceLive]
+    SES[SessionServiceLive]
+    LAYER[Composed Layer]
+    PROGRAM[Effect.gen program]
+
+    NFS --> OCS
+    OCS --> AGS
+    NFS --> SES
+    SES --> LAYER
+    AGS --> LAYER
+    OCS --> LAYER
+    LAYER --> PROGRAM
+```
+
+</details>
 
 The `SessionServiceLive(dir)` layer captures `FileSystem` via `Layer.effect`, so all methods return bare `Effect<A, E>` with no requirements. Tests provide `NodeFileSystem.layer`, and the service uses atomic writes (tmp + rename) for session.json.
 
