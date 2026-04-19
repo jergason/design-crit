@@ -28,11 +28,3 @@ export function resolvePanel(input: string | undefined): {
   // otherwise treat as comma-separated persona list
   return { personas: input.split(',').map((s) => s.trim()) }
 }
-
-export function listPresets(): PanelPreset[] {
-  if (!fs.existsSync(PANELS_DIR)) return []
-  return fs
-    .readdirSync(PANELS_DIR)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(fs.readFileSync(path.join(PANELS_DIR, f), 'utf-8')))
-}

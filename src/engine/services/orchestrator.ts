@@ -71,9 +71,7 @@ function parseConvergenceScore(summary: string): number {
 export function runSession(params: RunSessionParams) {
   const emit = params.onEvent ?? (() => {})
   const pollHuman = params.pollHumanInput ?? (() => undefined)
-  const dbg = params.debug
-    ? (msg: string) => emit({ type: 'debug', message: msg })
-    : undefined
+  const dbg = params.debug ? (msg: string) => emit({ type: 'debug', message: msg }) : undefined
 
   return Effect.gen(function* () {
     const sessionSvc = yield* SessionService
@@ -155,7 +153,7 @@ export function runSession(params: RunSessionParams) {
       }
 
       // invoke all personas concurrently
-      const results = yield* Effect.forEach(
+      yield* Effect.forEach(
         params.panel,
         (persona) =>
           Effect.gen(function* () {

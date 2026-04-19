@@ -9,6 +9,7 @@ async function* fakeStream(events: SseEvent[]): AsyncGenerator<SseEvent> {
 }
 
 /** create an event stream that hangs forever (never yields) */
+// eslint-disable-next-line require-yield
 async function* hangingStream(): AsyncGenerator<SseEvent> {
   await new Promise(() => {}) // never resolves
 }

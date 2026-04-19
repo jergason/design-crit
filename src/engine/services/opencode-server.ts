@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer, Data } from 'effect'
 import { createOpencode, type OpencodeClient } from '@opencode-ai/sdk'
 
 export class OpenCodeServer extends Context.Tag('OpenCodeServer')<
@@ -8,6 +8,10 @@ export class OpenCodeServer extends Context.Tag('OpenCodeServer')<
     readonly url: string
   }
 >() {}
+
+export class OpenCodeStartError extends Data.TaggedError('OpenCodeStartError')<{
+  readonly cause: unknown
+}> {}
 
 export const OpenCodeServerLive = Layer.scoped(
   OpenCodeServer,
@@ -25,9 +29,3 @@ export const OpenCodeServerLive = Layer.scoped(
       }),
   ).pipe(Effect.map(({ client, url }) => OpenCodeServer.of({ client, url }))),
 )
-
-import { Data } from 'effect'
-
-export class OpenCodeStartError extends Data.TaggedError('OpenCodeStartError')<{
-  readonly cause: unknown
-}> {}

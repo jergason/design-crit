@@ -58,12 +58,14 @@ function mockAgentService(delayMs: number) {
         const start = Date.now()
         yield* Effect.promise(() => new Promise((r) => setTimeout(r, delayMs)))
         const end = Date.now()
-        invocations.push({ persona: params.persona, startTime: start, endTime: end, method: 'invoke' })
+        invocations.push({
+          persona: params.persona,
+          startTime: start,
+          endTime: end,
+          method: 'invoke',
+        })
         // facilitator summary — include a convergence score so it converges after round 2
-        return fakeResult(
-          params.persona,
-          `Summary for ${params.persona}\n\n**Convergence: 1**`,
-        )
+        return fakeResult(params.persona, `Summary for ${params.persona}\n\n**Convergence: 1**`)
       }),
 
     invokeStreaming: (params: AgentInvokeParams, onDelta) =>
@@ -74,7 +76,12 @@ function mockAgentService(delayMs: number) {
         yield* Effect.promise(() => new Promise((r) => setTimeout(r, delayMs)))
         onDelta('looks good.')
         const end = Date.now()
-        invocations.push({ persona: params.persona, startTime: start, endTime: end, method: 'invokeStreaming' })
+        invocations.push({
+          persona: params.persona,
+          startTime: start,
+          endTime: end,
+          method: 'invokeStreaming',
+        })
         return fakeResult(params.persona, `Review from ${params.persona}: looks good.`)
       }),
   })
@@ -161,8 +168,9 @@ describe('orchestrator concurrency', () => {
     const streamEnds = invocations
       .filter((i) => i.method === 'invokeStreaming')
       .map((i) => i.endTime)
-    const facilitatorStarts = invocations
-      .filter((i) => i.persona === 'facilitator' && i.method === 'invoke')
+    const facilitatorStarts = invocations.filter(
+      (i) => i.persona === 'facilitator' && i.method === 'invoke',
+    )
 
     // exclude the orientation facilitator (round 0) — get the summary one
     // the summary facilitator should be the last invoke call

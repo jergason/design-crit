@@ -38,9 +38,9 @@ export interface AgentResult {
   readonly providerId: string
 }
 
-export type AgentStreamCallback = (delta: string) => void
+type AgentStreamCallback = (delta: string) => void
 
-export type AgentDebugCallback = (msg: string) => void
+type AgentDebugCallback = (msg: string) => void
 
 const STREAM_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
@@ -120,7 +120,7 @@ export interface SseEvent {
   properties: Record<string, unknown>
 }
 
-export interface ProcessEventStreamParams {
+interface ProcessEventStreamParams {
   sessionId: string
   persona: string
   stream: AsyncIterable<unknown>
@@ -171,9 +171,7 @@ export function processEventStream(params: ProcessEventStreamParams): Promise<Ag
         if (lastContent.length > 0) {
           resolve(fallbackResult())
         } else {
-          reject(
-            new Error(`streaming timeout for ${persona} after ${elapsed}s with no content`),
-          )
+          reject(new Error(`streaming timeout for ${persona} after ${elapsed}s with no content`))
         }
       }
     }, timeoutMs)

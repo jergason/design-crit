@@ -10,6 +10,10 @@ function loadFacilitatorPrompt(personasDir: string): string {
   return fs.readFileSync(filePath, 'utf-8')
 }
 
+type OutputEvent =
+  | { type: 'generating'; artifact: string }
+  | { type: 'complete'; artifact: string; cost: number; tokens: number }
+
 export function generateOutput(params: {
   sessionId: string
   personasDir: string
@@ -79,7 +83,3 @@ export function generateOutput(params: {
     }
   })
 }
-
-export type OutputEvent =
-  | { type: 'generating'; artifact: string }
-  | { type: 'complete'; artifact: string; cost: number; tokens: number }

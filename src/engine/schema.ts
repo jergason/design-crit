@@ -2,22 +2,17 @@ import { Schema } from 'effect'
 
 // --- Branded types ---
 
-export const SessionId = Schema.String.pipe(
+const SessionId = Schema.String.pipe(
   Schema.brand('SessionId'),
   Schema.annotations({ description: 'Unique session identifier (session-{ulid})' }),
 )
-export type SessionId = typeof SessionId.Type
 export const makeSessionId = Schema.decodeSync(SessionId)
-
-export const PersonaId = Schema.String.pipe(
-  Schema.brand('PersonaId'),
-  Schema.annotations({ description: 'Persona slug (lowercase-kebab-case)' }),
-)
-export type PersonaId = typeof PersonaId.Type
 
 // --- Enums ---
 
-export const SessionStatus = Schema.Literal(
+const SessionMode = Schema.Literal('live', 'async')
+
+const SessionStatus = Schema.Literal(
   'setup',
   'orientation',
   'reviewing',
@@ -25,44 +20,23 @@ export const SessionStatus = Schema.Literal(
   'complete',
   'error',
 )
-export type SessionStatus = typeof SessionStatus.Type
-
-export const SessionMode = Schema.Literal('live', 'async')
-export type SessionMode = typeof SessionMode.Type
 
 // --- Model config ---
 
-export const ModelConfig = Schema.Struct({
+const ModelConfig = Schema.Struct({
   providerID: Schema.String,
   modelID: Schema.String,
 })
-export type ModelConfig = typeof ModelConfig.Type
-
-// --- Panel config ---
-
-export const PanelPreset = Schema.Struct({
-  name: Schema.String,
-  description: Schema.String,
-  personas: Schema.Array(Schema.String),
-  roundLimit: Schema.Number,
-  models: Schema.optional(
-    Schema.Struct({
-      default: ModelConfig,
-    }).pipe(Schema.extend(Schema.Record({ key: Schema.String, value: ModelConfig }))),
-  ),
-})
-export type PanelPreset = typeof PanelPreset.Type
 
 // --- Round state ---
 
-export const RoundState = Schema.Struct({
+const RoundState = Schema.Struct({
   roundNumber: Schema.Number,
   status: Schema.Literal('pending', 'in_progress', 'summarizing', 'complete'),
   agentsCompleted: Schema.Array(Schema.String),
   hasHumanInput: Schema.optional(Schema.Boolean),
   summary: Schema.optional(Schema.String),
 })
-export type RoundState = typeof RoundState.Type
 
 // --- Session manifest (session.json) ---
 
